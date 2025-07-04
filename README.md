@@ -46,7 +46,7 @@ You'll find the module in `artifacts\Pico4SAFTExtTrackingModule.dll`
 
 ### Manual
 - Use [Visual Studio 2022](https://visualstudio.microsoft.com/es/vs/)
-- Clone [VRCFaceTracking 5.2.3.0](https://github.com/benaclejames/VRCFaceTracking/tree/5.2.3.0); this is done automatically if you run `git submodule update --init --recursive`
+- Clone [VRCFaceTracking 5.1.0.0](https://github.com/benaclejames/VRCFaceTracking/tree/5.1.0.0); this is done automatically if you run `git submodule update --init --recursive`
 - Compile VRCFaceTracking.Core
 - Finally, compile the PICO Module
 
@@ -67,5 +67,6 @@ You'll also find a summary in `PicoStreamingAssistantFTUDP\PicoStreamingAssistan
 ## Credits
 - [Ben](https://github.com/benaclejames/) for VRCFaceTracking!
 - [TofuLemon](https://github.com/ULemon/) with help testing, troubleshooting and providing crucial information that lead to the development of this module!
-- [rogermiranda1000](https://github.com/rogermiranda1000) for updating to the latest SA protocol.
+- [miranda1000](https://github.com/miranda1000) for updating to the latest SA protocol.
 - [lonelyicer](https://github.com/lonelyicer) for the recent contributions.
+- [FuviiPeshu](https://github.com/FuviiPeshu) for SA process detection fix.
