@@ -94,7 +94,29 @@ public class ConnectorFactoryShould
     }
 
     [TestMethod]
-    public void ReturnLegacyConnectorIfBusinessStreamingIsRunning()
+    public void ReturnLegacyConnectorIfOldBusinessStreamingIsRunning()
+    {
+        // arrange
+        Mock<ILogger> logger = new Mock<ILogger>();
+        Mock<IProgramChecker> programCheckerMock = new Mock<IProgramChecker>();
+        programCheckerMock.Setup(m => m.Check(It.IsAny<PicoPrograms>()))
+                        .Returns(false);
+        programCheckerMock.Setup(m => m.Check(PicoPrograms.BusinessStreamingUw))
+                        .Returns(true);
+        Mock<IConfigChecker> configCheckerMock = new Mock<IConfigChecker>();
+        configCheckerMock.Setup(m => m.GetTransferProtocolNumber(It.IsAny<PicoPrograms>()))
+                        .Returns(0);
+
+        // act
+        IPicoConnector? got = ConnectorFactory.build(logger.Object, programCheckerMock.Object, configCheckerMock.Object);
+
+        // assert
+        Assert.AreEqual(typeof(LegacyConnector), got?.GetType());
+        Assert.AreEqual("Business Streaming", got?.GetProcessName());
+    }
+
+    [TestMethod]
+    public void ReturnPicoConnectConnectorIfNewBusinessStreamingIsRunning()
     {
         // arrange
         Mock<ILogger> logger = new Mock<ILogger>();
@@ -106,6 +128,27 @@ public class ConnectorFactoryShould
         Mock<IConfigChecker> configCheckerMock = new Mock<IConfigChecker>();
         configCheckerMock.Setup(m => m.GetTransferProtocolNumber(It.IsAny<PicoPrograms>()))
                         .Returns(0);
+
+        // act
+        IPicoConnector? got = ConnectorFactory.build(logger.Object, programCheckerMock.Object, configCheckerMock.Object);
+
+        // assert
+        Assert.AreEqual(typeof(PicoConnectConnector), got?.GetType());
+    }
+
+    [TestMethod]
+    public void ReturnLegacyConnectorIfNewBusinessStreamingIsRunningAndIsUsingOldTransferProtocol()
+    {
+        // arrange
+        Mock<ILogger> logger = new Mock<ILogger>();
+        Mock<IProgramChecker> programCheckerMock = new Mock<IProgramChecker>();
+        programCheckerMock.Setup(m => m.Check(It.IsAny<PicoPrograms>()))
+                        .Returns(false);
+        programCheckerMock.Setup(m => m.Check(PicoPrograms.BusinessStreaming))
+                        .Returns(true);
+        Mock<IConfigChecker> configCheckerMock = new Mock<IConfigChecker>();
+        configCheckerMock.Setup(m => m.GetTransferProtocolNumber(It.IsAny<PicoPrograms>()))
+                        .Returns(2); // old transfer protocol
 
         // act
         IPicoConnector? got = ConnectorFactory.build(logger.Object, programCheckerMock.Object, configCheckerMock.Object);

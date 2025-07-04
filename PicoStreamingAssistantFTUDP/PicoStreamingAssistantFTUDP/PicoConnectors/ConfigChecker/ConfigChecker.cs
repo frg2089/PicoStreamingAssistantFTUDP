@@ -22,6 +22,7 @@ public sealed class ConfigChecker : IConfigChecker
         switch (program)
         {
             case PicoPrograms.PicoConnect:
+            case PicoPrograms.BusinessStreaming:
                 return this.picoConnectConfigChecker.GetTransferProtocolNumber(program);
 
             default:

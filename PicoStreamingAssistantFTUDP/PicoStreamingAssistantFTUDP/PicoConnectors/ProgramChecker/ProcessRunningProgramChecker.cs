@@ -23,7 +23,7 @@ public sealed class ProcessRunningProgramChecker : IProgramChecker
                 processName = "Streaming Assistant";
                 break;
 
-            case PicoPrograms.BusinessStreamingUW:
+            case PicoPrograms.BusinessStreamingUw:
                 processName = "Business StreamingUW";
                 break;
 

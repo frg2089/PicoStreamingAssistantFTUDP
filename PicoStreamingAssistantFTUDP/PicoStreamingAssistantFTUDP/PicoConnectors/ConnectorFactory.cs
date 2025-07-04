@@ -11,12 +11,22 @@ public sealed class ConnectorFactory
     {
         bool using_sa = programChecker.Check(PicoPrograms.StreamingAssistant);
         bool using_pc = programChecker.Check(PicoPrograms.PicoConnect);
-        bool using_old_bs = programChecker.Check(PicoPrograms.BusinessStreamingUW);
+        bool using_old_bs = programChecker.Check(PicoPrograms.BusinessStreamingUw);
         bool using_new_bs = programChecker.Check(PicoPrograms.BusinessStreaming);
 
         if (using_sa) return new LegacyConnector(Logger, PicoPrograms.StreamingAssistant);
-        else if (using_old_bs) return new LegacyConnector(Logger, PicoPrograms.BusinessStreamingUW);
-        else if (using_new_bs) return new LegacyConnector(Logger, PicoPrograms.BusinessStreaming);
+        else if (using_old_bs) return new LegacyConnector(Logger, PicoPrograms.BusinessStreamingUw);
+        else if (using_new_bs)
+        {
+            try {
+                Logger.LogInformation("Got new Business Streaming; checking settings.json to choose what protocol to use...");
+                if (configChecker.GetTransferProtocolNumber(PicoPrograms.BusinessStreaming) == 2) return new LegacyConnector(Logger, PicoPrograms.BusinessStreaming); // using legacy protocol
+            } catch (Exception ex) {
+                Logger.LogWarning("Exception while trying to get the config protocol number: " + ex.ToString);
+            }
+            // TODO is the protocol the same as PicoConnect? can we use the same connector (once it's implemented)?
+            return new PicoConnectConnector(Logger); // couldn't get / using latest protocol
+        }
         else if (using_pc)
         {
             try {
