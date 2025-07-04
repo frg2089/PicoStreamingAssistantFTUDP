@@ -9,6 +9,7 @@ namespace Pico4SAFTExtTrackingModule.PicoConnectors;
 public enum PicoPrograms
 {
     StreamingAssistant,
+    BusinessStreamingUW,
     BusinessStreaming,
     PicoConnect
 }

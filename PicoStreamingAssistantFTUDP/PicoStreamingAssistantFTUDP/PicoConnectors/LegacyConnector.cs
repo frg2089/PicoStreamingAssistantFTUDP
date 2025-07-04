@@ -47,6 +47,7 @@ public sealed class LegacyConnector : IPicoConnector
                 this.processName = "Streaming Assistant";
                 break;
 
+            case PicoPrograms.BusinessStreamingUW:
             case PicoPrograms.BusinessStreaming:
                 this.processName = "Business Streaming";
                 break;
@@ -110,7 +111,8 @@ public sealed class LegacyConnector : IPicoConnector
         catch (SocketException ex) when (ex.ErrorCode is 10048)
         {
             if (retry >= 3) result = false;
-            else {
+            else
+            {
                 retry++;
                 // Magic
                 // Close the pico_et_ft_bt_bridge.exe process and reinitialize it.
