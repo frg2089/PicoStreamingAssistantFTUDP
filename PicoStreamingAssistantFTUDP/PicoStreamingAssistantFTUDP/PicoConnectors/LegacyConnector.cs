@@ -47,7 +47,7 @@ public sealed class LegacyConnector : IPicoConnector
                 this.processName = "Streaming Assistant";
                 break;
 
-            case PicoPrograms.BusinessStreamingUw:
+            case PicoPrograms.BusinessStreamingV1:
             case PicoPrograms.BusinessStreaming:
                 this.processName = "Business Streaming";
                 break;

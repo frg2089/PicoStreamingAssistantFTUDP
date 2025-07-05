@@ -11,11 +11,11 @@ public sealed class ConnectorFactory
     {
         bool using_sa = programChecker.Check(PicoPrograms.StreamingAssistant);
         bool using_pc = programChecker.Check(PicoPrograms.PicoConnect);
-        bool using_old_bs = programChecker.Check(PicoPrograms.BusinessStreamingUw);
+        bool using_old_bs = programChecker.Check(PicoPrograms.BusinessStreamingV1);
         bool using_new_bs = programChecker.Check(PicoPrograms.BusinessStreaming);
 
         if (using_sa) return new LegacyConnector(Logger, PicoPrograms.StreamingAssistant);
-        else if (using_old_bs) return new LegacyConnector(Logger, PicoPrograms.BusinessStreamingUw);
+        else if (using_old_bs) return new LegacyConnector(Logger, PicoPrograms.BusinessStreamingV1);
         else if (using_new_bs)
         {
             try {

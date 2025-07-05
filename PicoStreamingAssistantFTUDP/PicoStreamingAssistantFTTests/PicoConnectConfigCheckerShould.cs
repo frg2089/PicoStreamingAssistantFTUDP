@@ -9,7 +9,8 @@ namespace Pico4SAFTExtTrackingModule.PicoConnectors;
 [TestClass]
 public class PicoConnectConfigCheckerShould
 {
-    public static readonly string CONFIG_FILE_PATH = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PICO Connect\\settings.json");
+    public static readonly string PICO_CONNECT_CONFIG_FILE_PATH = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PICO Connect\\settings.json");
+    public static readonly string BUSINESS_STREAMING_CONFIG_FILE_PATH = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Business Streaming\\settings.json");
 
     public static Mock<ILogger> GetLoggerMock(List<string> errors)
     {
@@ -54,7 +55,7 @@ public class PicoConnectConfigCheckerShould
 
         MockFileSystem mockFileSysteme = new MockFileSystem();
         MockFileData mockFileData = new MockFileData(GetLegacySettingsJson(0));
-        mockFileSysteme.AddFile(CONFIG_FILE_PATH, mockFileData);
+        mockFileSysteme.AddFile(PICO_CONNECT_CONFIG_FILE_PATH, mockFileData);
 
         PicoConnectConfigChecker uut = new PicoConnectConfigChecker(logger.Object, mockFileSysteme);
 
@@ -75,7 +76,7 @@ public class PicoConnectConfigCheckerShould
 
         MockFileSystem mockFileSysteme = new MockFileSystem();
         MockFileData mockFileData = new MockFileData(GetLegacySettingsJson(2));
-        mockFileSysteme.AddFile(CONFIG_FILE_PATH, mockFileData);
+        mockFileSysteme.AddFile(PICO_CONNECT_CONFIG_FILE_PATH, mockFileData);
 
         PicoConnectConfigChecker uut = new PicoConnectConfigChecker(logger.Object, mockFileSysteme);
 
@@ -96,7 +97,7 @@ public class PicoConnectConfigCheckerShould
 
         MockFileSystem mockFileSysteme = new MockFileSystem();
         MockFileData mockFileData = new MockFileData(GetSettingsJson(0));
-        mockFileSysteme.AddFile(CONFIG_FILE_PATH, mockFileData);
+        mockFileSysteme.AddFile(PICO_CONNECT_CONFIG_FILE_PATH, mockFileData);
 
         PicoConnectConfigChecker uut = new PicoConnectConfigChecker(logger.Object, mockFileSysteme);
 
@@ -117,12 +118,33 @@ public class PicoConnectConfigCheckerShould
 
         MockFileSystem mockFileSysteme = new MockFileSystem();
         MockFileData mockFileData = new MockFileData(GetSettingsJson(2));
-        mockFileSysteme.AddFile(CONFIG_FILE_PATH, mockFileData);
+        mockFileSysteme.AddFile(PICO_CONNECT_CONFIG_FILE_PATH, mockFileData);
 
         PicoConnectConfigChecker uut = new PicoConnectConfigChecker(logger.Object, mockFileSysteme);
 
         // act
         int got = uut.GetTransferProtocolNumber(PicoPrograms.PicoConnect);
+
+        // assert
+        Assert.AreEqual(0, errors.Count, "Expected no errors; instead got:\n" + String.Join("\n", errors));
+        Assert.AreEqual(2, got);
+    }
+
+    [TestMethod]
+    public void ReturnTransferProtocol2WhenBusinessStreamingFileContainsTransferProtocol2()
+    {
+        // arrange
+        List<string> errors = new List<string>();
+        Mock<ILogger> logger = GetLoggerMock(errors);
+
+        MockFileSystem mockFileSysteme = new MockFileSystem();
+        MockFileData mockFileData = new MockFileData(GetSettingsJson(2));
+        mockFileSysteme.AddFile(BUSINESS_STREAMING_CONFIG_FILE_PATH, mockFileData);
+
+        PicoConnectConfigChecker uut = new PicoConnectConfigChecker(logger.Object, mockFileSysteme);
+
+        // act
+        int got = uut.GetTransferProtocolNumber(PicoPrograms.BusinessStreaming);
 
         // assert
         Assert.AreEqual(0, errors.Count, "Expected no errors; instead got:\n" + String.Join("\n", errors));
@@ -157,7 +179,7 @@ public class PicoConnectConfigCheckerShould
 
         MockFileSystem mockFileSysteme = new MockFileSystem();
         MockFileData mockFileData = new MockFileData("{\"data\": \"corrupted");
-        mockFileSysteme.AddFile(CONFIG_FILE_PATH, mockFileData);
+        mockFileSysteme.AddFile(PICO_CONNECT_CONFIG_FILE_PATH, mockFileData);
 
         PicoConnectConfigChecker uut = new PicoConnectConfigChecker(logger.Object, mockFileSysteme);
 
@@ -178,7 +200,7 @@ public class PicoConnectConfigCheckerShould
 
         MockFileSystem mockFileSysteme = new MockFileSystem();
         MockFileData mockFileData = new MockFileData("{\"data\": \"unexpected\"}");
-        mockFileSysteme.AddFile(CONFIG_FILE_PATH, mockFileData);
+        mockFileSysteme.AddFile(PICO_CONNECT_CONFIG_FILE_PATH, mockFileData);
 
         PicoConnectConfigChecker uut = new PicoConnectConfigChecker(logger.Object, mockFileSysteme);
 
@@ -199,7 +221,7 @@ public class PicoConnectConfigCheckerShould
 
         MockFileSystem mockFileSysteme = new MockFileSystem();
         MockFileData mockFileData = new MockFileData("{\"lab\":{\"faceTrackingTransferProtocol\":2}}");
-        mockFileSysteme.AddFile(CONFIG_FILE_PATH, mockFileData);
+        mockFileSysteme.AddFile(PICO_CONNECT_CONFIG_FILE_PATH, mockFileData);
 
         PicoConnectConfigChecker uut = new PicoConnectConfigChecker(logger.Object, mockFileSysteme);
 

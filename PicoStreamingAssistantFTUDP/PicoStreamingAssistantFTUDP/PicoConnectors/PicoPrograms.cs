@@ -23,11 +23,11 @@ public enum PicoPrograms
 
     /**
      * Business Streaming (BS) is the successor of SA for business devices (PICO 4 enterprise).
-     * Due to a internal change since one BS version we keep this (BusinessStreamingUw)
-     * entry to refere to "old BS programs".
+     * Due to a internal change since one BS version we keep this (BusinessStreamingV1)
+     * entry to refere to "old BS 1.X programs".
      * Internally works similar to how SA did.
      */
-    BusinessStreamingUw,
+    BusinessStreamingV1,
 
     /**
      * Business Streaming (BS) is the successor of SA for business devices (PICO 4 enterprise).

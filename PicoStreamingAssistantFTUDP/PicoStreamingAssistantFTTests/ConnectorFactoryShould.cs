@@ -101,7 +101,7 @@ public class ConnectorFactoryShould
         Mock<IProgramChecker> programCheckerMock = new Mock<IProgramChecker>();
         programCheckerMock.Setup(m => m.Check(It.IsAny<PicoPrograms>()))
                         .Returns(false);
-        programCheckerMock.Setup(m => m.Check(PicoPrograms.BusinessStreamingUw))
+        programCheckerMock.Setup(m => m.Check(PicoPrograms.BusinessStreamingV1))
                         .Returns(true);
         Mock<IConfigChecker> configCheckerMock = new Mock<IConfigChecker>();
         configCheckerMock.Setup(m => m.GetTransferProtocolNumber(It.IsAny<PicoPrograms>()))
