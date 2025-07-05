@@ -35,7 +35,7 @@ public sealed class PicoConnectConfigChecker : IConfigChecker
 
     public int GetTransferProtocolNumber(PicoPrograms program)
     {
-        if (program != PicoPrograms.PicoConnect || program != PicoPrograms.BusinessStreaming)
+        if (program != PicoPrograms.PicoConnect && program != PicoPrograms.BusinessStreaming)
             throw new ArgumentException("PicoConnectConfigChecker class only checks for PICO Connect or Business Streaming 2.0 config files");
 
         if (picoConfig!.Value == null || picoConfig!.Value.lab == null)
