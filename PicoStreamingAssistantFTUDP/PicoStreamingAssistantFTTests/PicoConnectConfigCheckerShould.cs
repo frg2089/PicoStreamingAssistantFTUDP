@@ -9,8 +9,8 @@ namespace Pico4SAFTExtTrackingModule.PicoConnectors;
 [TestClass]
 public class PicoConnectConfigCheckerShould
 {
-    public static readonly string PICO_CONNECT_CONFIG_FILE_PATH = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PICO Connect\\settings.json");
-    public static readonly string BUSINESS_STREAMING_CONFIG_FILE_PATH = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Business Streaming\\settings.json");
+    public static readonly string PICO_CONNECT_CONFIG_FILE_PATH = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PICO Connect", "settings.json");
+    public static readonly string BUSINESS_STREAMING_CONFIG_FILE_PATH = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Business Streaming", "settings.json");
 
     public static Mock<ILogger> GetLoggerMock(List<string> errors)
     {

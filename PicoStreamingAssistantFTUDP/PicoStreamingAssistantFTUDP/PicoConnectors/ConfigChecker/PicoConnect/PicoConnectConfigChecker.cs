@@ -13,7 +13,6 @@ public sealed class PicoConnectConfigChecker : IConfigChecker
     {
         this.logger = logger;
         this.fileSystem = fileSystem;
-        this.picoConfig = new Lazy<Config>(() => GetConfig(fileSystem, logger));
     }
 
     public PicoConnectConfigChecker(ILogger logger) : this(logger, new FileSystem()) { }
@@ -29,15 +28,14 @@ public sealed class PicoConnectConfigChecker : IConfigChecker
                 return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PICO Connect");
 
             default:
-                // shouldn't reach this
-                return "";
+                throw new ArgumentException("PicoConnectConfigChecker class only checks for PICO Connect or Business Streaming 2.0 config files");
         }
     }
 
     private static Config GetConfig(IFileSystem fileSystem, PicoPrograms program, ILogger? logger = null)
     {
         string configLocation = Path.Combine(GetProgramFsBasePath(program), "settings.json");
-        logger.LogInformation("Expecting PICO settings file at '" + configLocation + "'");
+        logger?.LogInformation("Expecting PICO settings file at '" + configLocation + "'");
         try
         {
             string configContents = fileSystem.File.ReadAllText(configLocation);
