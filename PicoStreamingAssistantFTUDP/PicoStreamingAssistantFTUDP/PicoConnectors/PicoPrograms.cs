@@ -15,7 +15,7 @@ public enum PicoPrograms
     StreamingAssistant,
 
     /**
-     * PicoConnect is the successor of SA.
+     * PICO Connect is the successor of SA.
      * Currently PicoConnect lacks of proper API to get facetracking data, so
      * we force it to work like the old SA did and that way we can re-use the module.
      */
@@ -31,7 +31,7 @@ public enum PicoPrograms
 
     /**
      * Business Streaming (BS) is the successor of SA for business devices (PICO 4 enterprise).
-     * Internally works similar to how PicoConnect do.
+     * Since 2.0, internally works similar to how PicoConnect do.
      */
     BusinessStreaming
 }

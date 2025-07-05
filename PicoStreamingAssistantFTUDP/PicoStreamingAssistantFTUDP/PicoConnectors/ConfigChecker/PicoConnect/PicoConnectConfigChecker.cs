@@ -37,7 +37,7 @@ public sealed class PicoConnectConfigChecker : IConfigChecker
     private static Config GetConfig(IFileSystem fileSystem, PicoPrograms program, ILogger? logger = null)
     {
         string configLocation = Path.Combine(GetProgramFsBasePath(program), "settings.json");
-        logger.LogInformation("Expecting PICO Connect settings file at '" + configLocation + "'");
+        logger.LogInformation("Expecting PICO settings file at '" + configLocation + "'");
         try
         {
             string configContents = fileSystem.File.ReadAllText(configLocation);
@@ -45,7 +45,7 @@ public sealed class PicoConnectConfigChecker : IConfigChecker
         }
         catch (Exception ex)
         {
-            logger?.LogError("Pico Connect Config deserialize failed: " + ex.ToString());
+            logger?.LogError("Pico Config deserialize failed: " + ex.ToString());
             return null;
         }
     }
