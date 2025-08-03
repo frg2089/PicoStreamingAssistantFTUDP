@@ -2,7 +2,9 @@
 using Moq;
 using Pico4SAFTExtTrackingModule.BlendshapeScaler;
 using Pico4SAFTExtTrackingModule.PicoConnectors;
+using VRCFaceTracking;
 using VRCFaceTracking.Core.Library;
+using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace Pico4SAFTExtTrackingModule;
@@ -10,14 +12,23 @@ namespace Pico4SAFTExtTrackingModule;
 [TestClass]
 public class Pico4ModuleShould
 {
+    /// <summary>
+    /// Creates and configures a mock implementation of <see cref="IBlendshapeScaler"/>.
+    /// The mock returns the input value unchanged for both <c>EyeExpressionShapeScale</c>
+    /// and <c>UnifiedExpressionShapeScale</c> methods, regardless of the expression type.
+    /// This is useful for unit tests where scaling logic should be bypassed.
+    /// </summary>
+    /// <returns>
+    /// A <see cref="Mock{IBlendshapeScaler}"/> instance with the relevant methods set up.
+    /// </returns>
     private static Mock<IBlendshapeScaler> GetScalerMock()
     {
-        Mock<IBlendshapeScaler> logger = new Mock<IBlendshapeScaler>();
-        logger.Setup(m => m.EyeExpressionShapeScale(It.IsAny<float>(), It.IsAny<EyeExpressions>()))
+        Mock<IBlendshapeScaler> scaler = new Mock<IBlendshapeScaler>();
+        scaler.Setup(m => m.EyeExpressionShapeScale(It.IsAny<float>(), It.IsAny<EyeExpressions>()))
             .Returns((float val, EyeExpressions _) => { return val; });
-        logger.Setup(m => m.UnifiedExpressionShapeScale(It.IsAny<float>(), It.IsAny<UnifiedExpressions>()))
+        scaler.Setup(m => m.UnifiedExpressionShapeScale(It.IsAny<float>(), It.IsAny<UnifiedExpressions>()))
             .Returns((float val, UnifiedExpressions _) => { return val; });
-        return logger;
+        return scaler;
     }
 
     [TestMethod]
@@ -41,6 +52,92 @@ public class Pico4ModuleShould
         scalerMock.Verify(m => m.UnifiedExpressionShapeScale(It.IsAny<float>(), It.IsAny<UnifiedExpressions>()), Times.Exactly(numberOfFaceParamsSet));
     }
 
+    [TestMethod]
+    public unsafe void IgnoreFacetrackingBlendshapesWhenVisemesDataAvailable()
+    {
+        IPicoConnectorMock pxrFTInfoMock = new IPicoConnectorMock();
+        Mock<IBlendshapeScaler> scalerMock = GetScalerMock();
+        Pico4SAFTExtTrackingModule uut = new Pico4SAFTExtTrackingModule(pxrFTInfoMock, scalerMock.Object);
+        // simulate the `Setup` has been called
+        uut.Status = ModuleState.Active;
+        uut.trackingState = (true, true);
+
+        // act
+        // 1. no sound
+        pxrFTInfoMock.setParam(BlendShapeIndex.JawOpen, 1.0f);
+        pxrFTInfoMock.setParam(BlendShapeIndex.EyeBlink_L, 0.0f);
+        pxrFTInfoMock.setParam(BlendShapeIndex.FF, 0.0f);
+        uut.Update();
+
+        // assert
+        fixed (UnifiedExpressionShape* unifiedShape = UnifiedTracking.Data.Shapes)
+        fixed (UnifiedSingleEyeData* pLeft = &UnifiedTracking.Data.Eye.Left)
+        {
+            Assert.AreEqual(1.0f, unifiedShape[(int)UnifiedExpressions.JawOpen].Weight);
+            Assert.AreEqual(1.0f, pLeft->Openness); // we set blink to 0 so that means it's open
+        }
+
+        // act
+        // 2. sound; keep last
+        pxrFTInfoMock.setParam(BlendShapeIndex.JawOpen, 0.0f); // jaw is set to 0 when there's sound
+        pxrFTInfoMock.setParam(BlendShapeIndex.EyeBlink_L, 0.0f);
+        pxrFTInfoMock.setParam(BlendShapeIndex.FF, 1.0f);
+        uut.Update();
+
+        // assert
+        fixed (UnifiedExpressionShape* unifiedShape = UnifiedTracking.Data.Shapes)
+        fixed (UnifiedSingleEyeData* pLeft = &UnifiedTracking.Data.Eye.Left)
+        {
+            Assert.AreEqual(1.0f, unifiedShape[(int)UnifiedExpressions.JawOpen].Weight);
+            Assert.AreEqual(1.0f, pLeft->Openness); // we set blink to 0 so that means it's open
+        }
+
+        // act
+        // 3. still sound; keep last but update eye
+        pxrFTInfoMock.setParam(BlendShapeIndex.JawOpen, 0.0f); // jaw is set to 0 when there's sound
+        pxrFTInfoMock.setParam(BlendShapeIndex.EyeBlink_L, 1.0f);
+        pxrFTInfoMock.setParam(BlendShapeIndex.FF, 1.0f);
+        uut.Update();
+
+        // assert
+        fixed (UnifiedExpressionShape* unifiedShape = UnifiedTracking.Data.Shapes)
+        fixed (UnifiedSingleEyeData* pLeft = &UnifiedTracking.Data.Eye.Left)
+        {
+            Assert.AreEqual(1.0f, unifiedShape[(int)UnifiedExpressions.JawOpen].Weight);
+            Assert.AreEqual(0.0f, pLeft->Openness); // we set blink to 1 so that means it's closed
+        }
+
+        // act
+        // 4. still sound; keep last
+        pxrFTInfoMock.setParam(BlendShapeIndex.JawOpen, 0.0f); // jaw is set to 0 when there's sound
+        pxrFTInfoMock.setParam(BlendShapeIndex.EyeBlink_L, 1.0f);
+        pxrFTInfoMock.setParam(BlendShapeIndex.FF, 0.02f);
+        uut.Update();
+
+        // assert
+        fixed (UnifiedExpressionShape* unifiedShape = UnifiedTracking.Data.Shapes)
+        fixed (UnifiedSingleEyeData* pLeft = &UnifiedTracking.Data.Eye.Left)
+        {
+            Assert.AreEqual(1.0f, unifiedShape[(int)UnifiedExpressions.JawOpen].Weight);
+            Assert.AreEqual(0.0f, pLeft->Openness); // we set blink to 1 so that means it's closed
+        }
+
+        // act
+        // 5. no sound sound, but residual value left; update
+        pxrFTInfoMock.setParam(BlendShapeIndex.JawOpen, 0.2f);
+        pxrFTInfoMock.setParam(BlendShapeIndex.EyeBlink_L, 1.0f);
+        pxrFTInfoMock.setParam(BlendShapeIndex.FF, 0.00002f); // some small value is left after talking
+        uut.Update();
+
+        // assert
+        fixed (UnifiedExpressionShape* unifiedShape = UnifiedTracking.Data.Shapes)
+        fixed (UnifiedSingleEyeData* pLeft = &UnifiedTracking.Data.Eye.Left)
+        {
+            Assert.AreEqual(0.2f, unifiedShape[(int)UnifiedExpressions.JawOpen].Weight);
+            Assert.AreEqual(0.0f, pLeft->Openness); // we set blink to 1 so that means it's closed
+        }
+    }
+
 
 
     private class IPicoConnectorMock : IPicoConnector
@@ -52,9 +149,12 @@ public class Pico4ModuleShould
             this.getBlendShapesReturn = new PxrFTInfo();
         }
 
-        public IPicoConnectorMock(PxrFTInfo getBlendShapesReturn)
+        public unsafe void setParam(BlendShapeIndex shape, float value)
         {
-            this.getBlendShapesReturn = getBlendShapesReturn;
+            fixed (float* blendShapeWeights = this.getBlendShapesReturn.blendShapeWeight)
+            {
+                blendShapeWeights[(int)shape] = value;
+            }
         }
 
         public bool Connect()
@@ -64,8 +164,8 @@ public class Pico4ModuleShould
 
         public unsafe float* GetBlendShapes()
         {
-            fixed (PxrFTInfo* pData = &this.getBlendShapesReturn)
-                return pData->blendShapeWeight;
+            fixed (float* blendShapeWeights = this.getBlendShapesReturn.blendShapeWeight)
+                return blendShapeWeights;
         }
 
         public string GetProcessName()
