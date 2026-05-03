@@ -1,7 +1,10 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+
 using Moq;
+
 using Pico4SAFTExtTrackingModule.PicoConnectors.ConfigChecker.PicoConnect;
+
 using System.IO.Abstractions.TestingHelpers;
 
 namespace Pico4SAFTExtTrackingModule.PicoConnectors;
@@ -20,8 +23,9 @@ public class PicoConnectConfigCheckerShould
                     It.IsAny<EventId>(),
                     It.IsAny<It.IsAnyType>(),
                     It.IsAny<Exception>(),
-                    (Func<It.IsAnyType, Exception, string>)It.IsAny<object>()))
-            .Callback(new InvocationAction(invocation => {
+                    (Func<It.IsAnyType, Exception?, string>)It.IsAny<object>()))
+            .Callback(new InvocationAction(invocation =>
+            {
                 var logLevel = (LogLevel)invocation.Arguments[0]; // The first two will always be whatever is specified in the setup above
                 var eventId = (EventId)invocation.Arguments[1];  // so I'm not sure you would ever want to actually use them
                 var state = invocation.Arguments[2];
@@ -29,9 +33,10 @@ public class PicoConnectConfigCheckerShould
                 var formatter = invocation.Arguments[4];
 
                 var invokeMethod = formatter.GetType().GetMethod("Invoke");
-                var logMessage = (string)invokeMethod?.Invoke(formatter, new[] { state, exception });
+                var logMessage = (string?)invokeMethod?.Invoke(formatter, new[] { state, exception });
 
-                errors.Add(logMessage);
+                if (!string.IsNullOrEmpty(logMessage))
+                    errors.Add(logMessage);
             }));
         return logger;
     }

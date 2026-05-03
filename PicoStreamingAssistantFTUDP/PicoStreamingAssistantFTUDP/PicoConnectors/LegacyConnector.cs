@@ -1,129 +1,114 @@
-﻿using Microsoft.Extensions.Logging;
-using Pico4SAFTExtTrackingModule.PacketLogger;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using VRCFaceTracking.Core.Params.Data;
-using VRCFaceTracking;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+using Microsoft.Extensions.Logging;
 
 namespace Pico4SAFTExtTrackingModule.PicoConnectors;
 
-/**
- * Connector class for Streaming Assitant & Business Streaming.
- * Also used for PICO Connect on `mergetype=2`
- **/
-public sealed class LegacyConnector : IPicoConnector
+/// <summary>
+/// Connector class for Streaming Assitant & Business Streaming.
+/// Also used for PICO Connect on `mergetype=2`
+/// </summary>
+public sealed partial class LegacyConnector : IPicoConnector
 {
     private const string IP_ADDRESS = "127.0.0.1";
     private const int PORT_NUMBER = 29765;
 
-    private static readonly unsafe int pxrHeaderSize = sizeof(TrackingDataHeader);
-    private readonly int PacketIndex = pxrHeaderSize;
-    private static readonly unsafe int pxrFtInfoSize = sizeof(PxrFTInfo);
-    private static readonly int PacketSize = pxrHeaderSize + pxrFtInfoSize;
+    private static readonly int s_pxrHeaderSize = Unsafe.SizeOf<TrackingDataHeader>();
+    private static readonly int s_pxrFtInfoSize = Unsafe.SizeOf<PxrFTInfo>();
+    private static readonly int s_packetIndex = s_pxrHeaderSize;
+    private static readonly int s_packetSize = s_pxrHeaderSize + s_pxrFtInfoSize;
 
-    private bool disposedValue, connecting;
-    private object socketLock;
-    private ILogger Logger;
-    private UdpClient? udpClient;
-    private IPEndPoint? endPoint;
-    private PxrFTInfo data;
-    private Thread? tryReinitializeThread;
+    private bool _disposedValue;
+    private bool _connecting;
+    private readonly Lock _socketLock = new Lock();
+    private readonly ILogger _logger;
+    private UdpClient? _udpClient;
+    private IPEndPoint? _endPoint;
+    private PxrFTInfo _data;
+    private Thread? _tryReinitializeThread;
 
-    private string processName;
+    private readonly string _processName;
 
     public LegacyConnector(ILogger Logger, PicoPrograms program_using)
     {
-        this.disposedValue = false;
-        this.connecting = false;
-        this.socketLock = new object();
+        _logger = Logger;
 
-        this.tryReinitializeThread = null;
-        this.Logger = Logger;
-
-        switch (program_using)
+        _processName = program_using switch
         {
-            case PicoPrograms.StreamingAssistant:
-                this.processName = "Streaming Assistant";
-                break;
+            PicoPrograms.StreamingAssistant => "Streaming Assistant",
+            PicoPrograms.BusinessStreamingV1 or PicoPrograms.BusinessStreaming => "Business Streaming",
+            PicoPrograms.PicoConnect => "PICO Connect",
+            _ => string.Empty,
+        };
 
-            case PicoPrograms.BusinessStreamingV1:
-            case PicoPrograms.BusinessStreaming:
-                this.processName = "Business Streaming";
-                break;
-
-            case PicoPrograms.PicoConnect:
-                this.processName = "PICO Connect";
-                break;
-
-            default:
-                // shouldn't reach this
-                Logger.LogWarning("Couldn't find the name for program " + program_using.ToString());
-                this.processName = "[?]";
-                break;
+        if (string.IsNullOrEmpty(_processName))
+        {
+            // shouldn't reach this
+            LogWarningUnknownProcess(program_using);
+            _processName = "[?]";
         }
     }
 
     public bool Connect()
     {
-        lock (this.socketLock)
+        lock (_socketLock)
         {
-            this.disposedValue = false;
-            this.connecting = true;
+            _disposedValue = false;
+            _connecting = true;
         }
 
-        bool result;
-        int retry = 0;
-
-    ReInitialize:
         try
         {
-            lock (this.socketLock)
+            for (int retry = 0; retry < 3; retry++)
             {
-                udpClient = new UdpClient(PORT_NUMBER);
-                endPoint = new IPEndPoint(IPAddress.Parse(IP_ADDRESS), PORT_NUMBER);
-            }
-            // Since Streaming Assistant is already running,
-            // this module is indeed needed,
-            // so the timeout failure is unnecessary.
-            // udpClient.Client.ReceiveTimeout = 15000; // Initialization timeout.
-
-            Logger.LogDebug("Host end-point: {endPoint}", endPoint);
-            Logger.LogDebug("Initialization Timeout: {timeout}ms", udpClient.Client.ReceiveTimeout);
-            Logger.LogDebug("Client established: attempting to receive PxrFTInfo.");
-
-            Logger.LogInformation("Waiting for {} data stream.", this.processName);
-            unsafe
-            {
-                fixed (PxrFTInfo* pData = &data)
+                try
                 {
-                    result = ReceivePxrData(pData, reinit: false);
+                    lock (_socketLock)
+                    {
+                        _udpClient = new UdpClient(PORT_NUMBER);
+                        _endPoint = new IPEndPoint(IPAddress.Parse(IP_ADDRESS), PORT_NUMBER);
+                    }
+                    // Since Streaming Assistant is already running,
+                    // this module is indeed needed,
+                    // so the timeout failure is unnecessary.
+                    // udpClient.Client.ReceiveTimeout = 15000; // Initialization timeout.
+
+                    LogDebugHostEndpoint(_endPoint);
+                    LogDebugTimeout(_udpClient.Client.ReceiveTimeout);
+                    LogDebugEstablished();
+
+                    LogWaiting(_processName);
+
+
+                    if (ReceivePxrData(ref _data, reinit: false))
+                    {
+                        LogHandshakeSuccess(_processName);
+
+                        _udpClient.Client.ReceiveTimeout = 5000;
+
+                        return true;
+                    }
+
+                    return false;
                 }
-            }
-
-            if (result)
-            {
-                Logger.LogInformation("{} handshake success.", this.processName);
-
-                udpClient.Client.ReceiveTimeout = 5000;
-            }
-        }
-        catch (SocketException ex) when (ex.ErrorCode is 10048)
-        {
-            if (retry >= 3) result = false;
-            else
-            {
-                retry++;
-                // Magic
-                // Close the pico_et_ft_bt_bridge.exe process and reinitialize it.
-                // It will listen to UDP port before pico_et_ft_bt_bridge.exe runs.
-                // Note: exclusively to simplify older versions of the FT bridge,
-                // the bridge now works without any need for process killing.
-                Process proc = new()
+                catch (SocketException ex) when (ex.ErrorCode is 10048)
                 {
-                    StartInfo = {
+                    // Magic
+                    // Close the pico_et_ft_bt_bridge.exe process and reinitialize it.
+                    // It will listen to UDP port before pico_et_ft_bt_bridge.exe runs.
+                    // Note: exclusively to simplify older versions of the FT bridge,
+                    // the bridge now works without any need for process killing.
+                    Process proc = new()
+                    {
+                        StartInfo =
+                    {
                         FileName = "taskkill.exe",
-                        ArgumentList = {
+                        ArgumentList =
+                        {
                             "/f",
                             "/t",
                             "/im",
@@ -131,108 +116,116 @@ public sealed class LegacyConnector : IPicoConnector
                         },
                         CreateNoWindow = true
                     }
-                };
-                proc.Start();
-                proc.WaitForExit();
-                goto ReInitialize;
+                    };
+                    proc.Start();
+                    proc.WaitForExit();
+                }
+                catch (Exception e)
+                {
+                    LogWarning(e);
+                    return false;
+                }
+            }
+
+            return false;
+        }
+        finally
+        {
+            lock (_socketLock)
+            {
+                _connecting = false;
             }
         }
-        catch (Exception e)
-        {
-            Logger.LogWarning("{exception}", e);
-            result = false;
-        }
-
-        lock (this.socketLock)
-        {
-            this.connecting = false;
-        }
-        return result;
     }
 
-    public unsafe float* GetBlendShapes()
+    public ReadOnlySpan<float> GetBlendShapes()
     {
-        lock (this.socketLock)
+        lock (_socketLock)
         {
-            if (this.connecting) return null;
+            if (_connecting)
+                return [];
         }
 
-        fixed (PxrFTInfo* pData = &data)
-            if (ReceivePxrData(pData))
-            {
-                float* pxrShape = pData->blendShapeWeight;
-                return pxrShape;
-            }
+        if (!ReceivePxrData(ref _data))
+            return [];
 
-        return null;
+        return _data.blendShapeWeight;
     }
 
     public void Teardown()
     {
-        lock (this.socketLock)
+        lock (_socketLock)
         {
-            bool needsTeardown = (!this.disposedValue);
-            if (!needsTeardown) return;
-            this.disposedValue = true;
+            bool needsTeardown = !_disposedValue;
+            if (!needsTeardown)
+                return;
+
+            _disposedValue = true;
         }
 
-        Logger.LogInformation("Disposing of PxrFaceTracking UDP Client.");
-        lock (this.socketLock)
+        LogTeardown();
+        lock (_socketLock)
         {
-            if (udpClient is not null)
+            if (_udpClient is not null)
             {
-                udpClient.Client.Blocking = false;
-                udpClient.Client.Shutdown(SocketShutdown.Receive);
-                udpClient.Client.Close();
+                _udpClient.Client.Blocking = false;
+                _udpClient.Client.Shutdown(SocketShutdown.Receive);
+                _udpClient.Client.Close();
+                _udpClient.Dispose();
             }
-            udpClient?.Dispose();
         }
 
-        this.tryReinitializeThread?.Join();
+        _tryReinitializeThread?.Join();
 
-        lock (this.socketLock)
+        lock (_socketLock)
         {
-            udpClient = null;
-            endPoint = null;
+            _udpClient = null;
+            _endPoint = null;
         }
     }
 
-    private unsafe bool ReceivePxrData(PxrFTInfo* pData, bool reinit = true)
+    private bool ReceivePxrData(ref PxrFTInfo pData, bool reinit = true)
     {
-        if (this.IsDisposed()) return false;
+        Debug.Assert(_udpClient is not null);
+        if (IsDisposed())
+            return false;
 
         try
         {
-            fixed (byte* ptr = udpClient!.Receive(ref endPoint))
-            {
-                if (ptr == null) return false;
+            Span<byte> span = _udpClient.Receive(ref _endPoint);
+            if (span.IsEmpty)
+                return false;
 
-                TrackingDataHeader tdh;
-                Buffer.MemoryCopy(ptr, &tdh, pxrHeaderSize, pxrHeaderSize);
-                if (tdh.tracking_type != 2) return false; // not facetracking packet
+            var tdh = MemoryMarshal.Read<TrackingDataHeader>(span);
+            if (tdh.tracking_type != 2)
+                return false; // not facetracking packet
 
-                Buffer.MemoryCopy(ptr + PacketIndex, pData, pxrFtInfoSize, pxrFtInfoSize);
-            }
+            pData = MemoryMarshal.Read<PxrFTInfo>(span[s_packetIndex..]);
             return true;
         }
         catch (SocketException ex) when (ex.ErrorCode is 10060)
         {
             // socket time out
-            Logger.LogDebug("Data was not sent within the timeout. {msg}", ex.Message);
-            if (reinit) {
-                Logger.LogInformation("Data was not sent within the timeout (is headset hibernated?), reinitialize...");
+            LogDebugReceivePxrDataError(ex);
+            if (reinit)
+            {
+                LogReInitialize();
 
                 // try to reinitialize
-                this.Teardown();
-                lock(this.socketLock) {
-                    this.tryReinitializeThread = new Thread(new ThreadStart(() => {
+                Teardown();
+                lock (_socketLock)
+                {
+                    _tryReinitializeThread = new(() =>
+                    {
                         bool connected;
-                        do {
-                            connected = this.Connect();
-                            if (!connected) Thread.Sleep(200); // try again; we have to set a low number because VRCFT won't call `Teardown()` until all the updates are done
-                        } while (!this.IsDisposed() && !connected);
-                    }));
-                    this.tryReinitializeThread.Start();
+                        do
+                        {
+                            connected = Connect();
+                            if (!connected)
+                                Thread.Sleep(200); // try again; we have to set a low number because VRCFT won't call `Teardown()` until all the updates are done
+                        } while (!IsDisposed() && !connected);
+                    });
+                    _tryReinitializeThread.Start();
                 }
             }
 
@@ -241,21 +234,51 @@ public sealed class LegacyConnector : IPicoConnector
         catch (SocketException ex) when (ex.ErrorCode is 10004)
         {
             // `Teardown()` called
-            Logger.LogInformation("Socket closed");
+            LogSocketClosed();
             return false; // got byte failed
         }
     }
 
     public bool IsDisposed()
     {
-        lock (this.socketLock)
+        lock (_socketLock)
         {
-            return this.disposedValue;
+            return _disposedValue;
         }
     }
 
-    public string GetProcessName()
-    {
-        return this.processName;
-    }
+    public string GetProcessName() => _processName;
+
+
+    [LoggerMessage(LogLevel.Warning, "Unhandled Exception")]
+    private partial void LogWarning(Exception exception);
+
+
+    [LoggerMessage(LogLevel.Warning, "Couldn't find the name for program {type}")]
+    private partial void LogWarningUnknownProcess(PicoPrograms type);
+
+    [LoggerMessage(LogLevel.Debug, "Host end-point: {endPoint}")]
+    private partial void LogDebugHostEndpoint(EndPoint endPoint);
+    [LoggerMessage(LogLevel.Debug, "Initialization Timeout: {timeout}ms")]
+    private partial void LogDebugTimeout(int timeout);
+    [LoggerMessage(LogLevel.Debug, "Client established: attempting to receive PxrFTInfo.")]
+    private partial void LogDebugEstablished();
+
+    [LoggerMessage(LogLevel.Debug, "Data was not sent within the timeout.")]
+    private partial void LogDebugReceivePxrDataError(Exception exception);
+
+    [LoggerMessage(LogLevel.Information, "Waiting for {process} data stream.")]
+    private partial void LogWaiting(string process);
+
+    [LoggerMessage(LogLevel.Information, "{process} handshake success.")]
+    private partial void LogHandshakeSuccess(string process);
+
+    [LoggerMessage(LogLevel.Information, "Disposing of PxrFaceTracking UDP Client.")]
+    private partial void LogTeardown();
+
+    [LoggerMessage(LogLevel.Information, "Data was not sent within the timeout (is headset hibernated?), reinitialize...")]
+    private partial void LogReInitialize();
+
+    [LoggerMessage(LogLevel.Information, "Socket closed")]
+    private partial void LogSocketClosed();
 }
