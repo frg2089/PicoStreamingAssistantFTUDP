@@ -14,7 +14,11 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="Build" Condition="'$(ContinuousIntegrationBuild)' != 'true'">
-    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(APPDATA)\VRCFaceTracking\CustomLibs\$(TargetFileName)" OverwriteReadOnlyFiles="True" SkipUnchangedFiles="True" />
+    <ItemGroup>
+      <_Dist Include="$(OutputPath)\$(AssemblyName).*" />
+    </ItemGroup>
+    
+    <Copy SourceFiles="@(_Dist)" DestinationFiles="$(APPDATA)\VRCFaceTracking\CustomLibs\%(Filename)%(Extension)" OverwriteReadOnlyFiles="True" SkipUnchangedFiles="True" />
   </Target>
 
 </Project>
