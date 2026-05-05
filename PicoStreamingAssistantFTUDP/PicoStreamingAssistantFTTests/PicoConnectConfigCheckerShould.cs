@@ -18,18 +18,19 @@ public class PicoConnectConfigCheckerShould
     public static Mock<ILogger> GetLoggerMock(List<string> errors)
     {
         Mock<ILogger> logger = new Mock<ILogger>();
+        
+        logger.Setup(m => m.IsEnabled(It.IsAny<LogLevel>())).Returns(true);
+        
         logger.Setup(m => m.Log(
                     It.Is<LogLevel>(logLevel => logLevel == LogLevel.Error || logLevel == LogLevel.Critical),
                     It.IsAny<EventId>(),
                     It.IsAny<It.IsAnyType>(),
-                    It.IsAny<Exception>(),
+                    It.IsAny<Exception?>(),
                     (Func<It.IsAnyType, Exception?, string>)It.IsAny<object>()))
             .Callback(new InvocationAction(invocation =>
             {
-                var logLevel = (LogLevel)invocation.Arguments[0]; // The first two will always be whatever is specified in the setup above
-                var eventId = (EventId)invocation.Arguments[1];  // so I'm not sure you would ever want to actually use them
                 var state = invocation.Arguments[2];
-                var exception = (Exception)invocation.Arguments[3];
+                var exception = (Exception?)invocation.Arguments[3];
                 var formatter = invocation.Arguments[4];
 
                 var invokeMethod = formatter.GetType().GetMethod("Invoke");
